@@ -1,0 +1,131 @@
+#! /bin/bash
+
+function interaction() {
+	while true
+	do
+		echo -e "$2@$1 > \c"
+		read cmd args
+		fun="commande-$cmd"	
+		if [ "$(type -t $fun)" = "function" ]; then
+	   		$fun $1 $2 $args
+		else
+	  		echo "Commande non comprise !"
+		fi	
+	done
+}
+
+function connection() {
+
+			if test $(grep $2 users | grep -o $1) = $1
+			then 
+				echo -e "Rentrez votre mot de passe : \c"
+				read mdp
+				if test $mdp = $(grep $2 users | cut -d \; -f 3)
+				then
+					echo "$2 ; $1 ; $date" >> Connexions
+					interaction $1 $2 
+				else
+					echo "Mauvais mot de passe !"
+				fi
+					
+			else 
+				echo "Vous n'avez pas les droits !"
+			fi
+
+
+
+}
+
+function commande-su() {
+	if test -n $3; then
+			fichCo $1 $2
+			connection $1 $3
+		else 
+			erreur
+		fi
+
+}
+
+function commande-passwd() {
+
+	echo "Changement de mot de passe pour $2"
+        echo -e "Mot de passe actuel : \c"
+	read pass
+	if test $pass = $(grep $2 users | cut -d \; -f 3) ; then
+		echo -e "Nouveau mot de passe : \c"
+		read pass
+		echo -e "Retaper le nouveau mot de passe : \c"
+		read pass2
+		if test $pass = $pass2 ; then
+			mv users userstmp
+			sed -u 's/'$2' ;\(.*\);.*/'$2' ;\1; '$pass'/' userstmp > users
+			rm userstmp
+		else 
+			echo "Les mots de passe sont différents !" 
+			commande-passwd $1 $2 $3
+		fi
+	else 
+		echo "Mauvais mot de passe !"
+		commande-passwd $1 $2 $3
+	fi
+			
+}
+function commande-connect() {
+	if test -n $3; then
+		fichCo $1 $2
+		connection $3 $2
+	else 
+		erreur
+	fi
+}
+
+function commande-who() {
+	cat Connexions | grep $1 | cut -n -d \; -f 1,3
+}
+
+function commande-rusers() {
+	cat Connexions
+}
+
+function commande-rhost() {
+	cat machines
+}
+
+function commande-finger() {
+	cat userinfos
+}
+
+function erreur() {
+	echo "Il y a une erreur. Veuillez recommencer."
+}
+
+function commande-exit() {
+	fichCo $1 $2
+	exit 0
+}	
+
+function fichCo() {
+	mv Connexions Connexionstmp
+	cat Connexionstmp | grep -v $2 | grep -v $1 > Connexions
+	rm Connexionstmp
+}
+
+date=$(date | cut -d \( -f 1 )
+if test $# -ge 1
+then
+	case $1 in
+	
+	-connect) if test $# -ge 3
+		  then
+			connection $2 $3
+		  else
+			erreur
+		  fi;;
+	-admin) ;;
+	*) erreur;;
+	esac
+else 
+	erreur
+fi
+
+
