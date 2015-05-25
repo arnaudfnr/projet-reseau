@@ -13,7 +13,7 @@ function interaction() {
 		fi	
 	done
 }
-
+hhhhhh
 function connection() {
 
 			if test $(grep $2 users | grep -o $1) = $1
