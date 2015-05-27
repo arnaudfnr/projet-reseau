@@ -1,19 +1,23 @@
 #! /bin/bash
 
+#include <unistd.h>
+
+cpt=0
+
 function interaction() {
 	while true
 	do
 		echo -e "$2@$1 > \c"
-		read cmd args
+		read cmd arg1 arg2
 		fun="commande-$cmd"	
 		if [ "$(type -t $fun)" = "function" ]; then
-	   		$fun $1 $2 $args
+	   		$fun $1 $2 $arg1 $arg2
 		else
 	  		echo "Commande non comprise !"
 		fi	
 	done
 }
-hhhhhh
+
 function connection() {
 
 			if test $(grep $2 users | grep -o $1) = $1
@@ -22,8 +26,10 @@ function connection() {
 				read mdp
 				if test $mdp = $(grep $2 users | cut -d \; -f 3)
 				then
-					echo "$2 ; $1 ; $date" >> Connexions
-					interaction $1 $2 
+					tty=$(ps -l | grep "ps" | sed -u 's/.*pts\/\([0-9][0-9]*\).*/\1/')
+					echo "$2 ; $1 ; $date ; terminal pts/$tty" >> Connexions
+					
+					interaction $1 $2
 				else
 					echo "Mauvais mot de passe !"
 				fi
@@ -38,8 +44,9 @@ function connection() {
 
 function commande-su() {
 	if test -n $3; then
+			#expr($cpt=$cpt+1)
 			fichCo $1 $2
-			connection $1 $3
+			connection $1 $3 
 		else 
 			erreur
 		fi
@@ -70,6 +77,28 @@ function commande-passwd() {
 	fi
 			
 }
+
+function commande-write() {
+	receiver=$(echo $3 | cut -d @ -f 1)
+	mach=$(echo $3 | cut -d @ -f 2)
+	if  test $(cat Connexions | grep $receiver | grep -c $mach) -ge 1 ; then 
+		if test $4 = "exit" ; then 
+			echo ""
+		else
+			term=$(cat Connexions | grep $receiver | grep $mach | cut -d \; -f 4 | cut -d \/ -f 2)
+			echo "" > \/dev\/pts\/$term
+			echo "$2@$1 > $4" > \/dev\/pts\/$term
+			echo -e "$receiver@$mach > \c" > \/dev\/pts\/$term
+			read msg
+			commande-write $1 $2 $3 $msg
+		fi
+	else 
+		erreur
+	
+	fi
+	
+}
+
 function commande-connect() {
 	if test -n $3; then
 		fichCo $1 $2
