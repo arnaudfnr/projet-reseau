@@ -17,14 +17,31 @@ cpt=0
 function interaction() {
 	while true
 	do
-		echo -e "$2@$1 > \c"
-		read cmd arg1 arg2
-		fun="commande-$cmd"	
-		if [ "$(type -t $fun)" = "function" ]; then
-	   		$fun $1 $2 $arg1 $arg2
+		if [ $1 = "admin" ]; then
+			echo -e "rvsh > \c"
+			read cmd arg1 arg2
+			if [ $cmd = "who" ]; then
+				echo "Vous n'êtes connectés à aucune machine"
+			else
+				fun="commande-$cmd"
+				if [ "$(type -t $fun)" = "function" ]; then
+					$fun NULL $1 $arg1 $arg2
+				else
+					echo "Commande non comprise"
+				fi
+			fi
+
 		else
-	  		echo "Commande non comprise !"
-		fi	
+			echo -e "$2@$1 > \c"
+			read cmd arg1 arg2
+			fun="commande-$cmd"	
+			if [ "$(type -t $fun)" = "function" ]; then
+	   			$fun $1 $2 $arg1 $arg2
+			else
+	  			echo "Commande non comprise !"
+			fi	
+		fi
+
 	done
 }
 
@@ -43,7 +60,6 @@ function interaction() {
 ########################################################################################################
 
 function connection() {
-
 	if test $(grep $2 users | grep -o $1) = $1
 		then
 			echo -e "Rentrez votre mot de passe : \c"
@@ -64,6 +80,22 @@ function connection() {
 	fi
 
 }
+
+function connection-admin(){
+	echo -e "Rentrez votre mot de passe : \c"
+	read mdp
+
+	if test $mdp = $(grep "admin" users | cut -d \; -f 3)
+	then
+		tty=$(ps -l | grep "ps" | sed -u 's/.*pts\/\([0-9][0-9]*\).*/\1/')
+		echo "admin ; $date ; terminal pts/$tty" >> Connexions
+					
+		interaction admin
+	else
+		echo "Mauvais mot de passe !"
+	fi
+}
+
 
 function commande-su() {
 	if test -n $3; then
@@ -162,20 +194,20 @@ function fichCo() {
 	rm Connexionstmp
 }
 
-# récupération de la date au format "jour num_jour moi année
+# récupération de la date au format "jour num_jour mois année
 date=$(date | cut -d \( -f 1 )
 
 if test $# -ge 1
 then
 	case $1 in
 	
-	-connect) if test $# -ge 3	#test pour savoir si l'user a bien envoyé tous les args
+	-connect) if test $# -ge 3	# test pour savoir si l'user a bien envoyé tous les args
 		  then
 			  connection $2 $3 	# $2(machine)	$3(user)
 		  else
 			erreur
 		  fi;;
-	-admin) ;;
+	-admin) connection-admin;;
 	*) erreur;;
 	esac
 else 
