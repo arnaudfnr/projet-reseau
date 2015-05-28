@@ -4,6 +4,16 @@
 
 cpt=0
 
+
+#######################################################################################################
+#			fonction interaction
+# $1(machine)	 $2(user)
+# tq vrai affichage du prompt user@machine
+# récupération du nom de la commande et de ses arguments 
+# appel de la fonction commande en lui envoyant les arguments
+#
+########################################################################################################
+
 function interaction() {
 	while true
 	do
@@ -18,27 +28,40 @@ function interaction() {
 	done
 }
 
+
+
+######################################################################################################
+#			fonction connection
+#
+# $1(machine)	 $2(user)
+# on test si l'utilisateur a le droit de se connecter à la machine
+# on test si le mdp est le bon
+# on récupère la partie derrière le 3eme ; (cut -d \; -f 3) à la ligne de l'user dans le fichier user
+# on récupère le tty et on écrit les informations dans le fichier Connexions
+# appel de la fonction interaction en lui envoyant machine et user
+#
+########################################################################################################
+
 function connection() {
 
-			if test $(grep $2 users | grep -o $1) = $1
-			then 
-				echo -e "Rentrez votre mot de passe : \c"
-				read mdp
-				if test $mdp = $(grep $2 users | cut -d \; -f 3)
+	if test $(grep $2 users | grep -o $1) = $1
+		then
+			echo -e "Rentrez votre mot de passe : \c"
+			read mdp
+
+			if test $mdp = $(grep $2 users | cut -d \; -f 3)
 				then
 					tty=$(ps -l | grep "ps" | sed -u 's/.*pts\/\([0-9][0-9]*\).*/\1/')
 					echo "$2 ; $1 ; $date ; terminal pts/$tty" >> Connexions
 					
 					interaction $1 $2
-				else
-					echo "Mauvais mot de passe !"
-				fi
-					
-			else 
-				echo "Vous n'avez pas les droits !"
+			else
+				echo "Mauvais mot de passe !"
 			fi
-
-
+					
+	else 
+		echo "Vous n'avez pas les droits !"
+	fi
 
 }
 
@@ -139,14 +162,16 @@ function fichCo() {
 	rm Connexionstmp
 }
 
+# récupération de la date au format "jour num_jour moi année
 date=$(date | cut -d \( -f 1 )
+
 if test $# -ge 1
 then
 	case $1 in
 	
-	-connect) if test $# -ge 3
+	-connect) if test $# -ge 3	#test pour savoir si l'user a bien envoyé tous les args
 		  then
-			connection $2 $3
+			  connection $2 $3 	# $2(machine)	$3(user)
 		  else
 			erreur
 		  fi;;
