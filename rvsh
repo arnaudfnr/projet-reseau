@@ -2,9 +2,6 @@
 
 #include <unistd.h>
 
-cpt=0
-
-
 #######################################################################################################
 #			fonction interaction
 # $1(machine)	 $2(user)
@@ -36,6 +33,9 @@ function interaction() {
 			read cmd arg1 arg2
 			fun="commande-$cmd"	
 			if [ "$(type -t $fun)" = "function" ]; then
+				if [ $cmd = "exit" ] ; then
+					arg1=$3
+				fi
 	   			$fun $1 $2 $arg1 $arg2
 			else
 	  			echo "Commande non comprise !"
@@ -70,7 +70,7 @@ function connection() {
 					tty=$(ps -l | grep "ps" | sed -u 's/.*pts\/\([0-9][0-9]*\).*/\1/')
 					echo "$2 ; $1 ; $date ; terminal pts/$tty" >> Connexions
 					
-					interaction $1 $2
+					interaction $1 $2 $3
 			else
 				echo "Mauvais mot de passe !"
 			fi
@@ -98,14 +98,21 @@ function connection-admin(){
 
 
 function commande-su() {
-	if test -n $3; then
-			#expr($cpt=$cpt+1)
-			fichCo $1 $2
-			connection $1 $3 
-		else 
-			erreur
-		fi
+	if [ -n $3 ] ; then
+		cpt=`expr $cpt + 1`
+		connection $1 $3 $2 #on donne en argument le nom de la machine, le nom du nouvel utilisateur ainsi que le nom de 			l'utilisateur précédent.
+	else 
+		erreur
+	fi
+}
 
+function commande-connect() {
+	if [ -n $3 ] ; then
+		cpt=`expr $cpt + 1`
+		connection $3 $2 $1
+	else 
+		erreur
+	fi
 }
 
 function commande-passwd() {
@@ -154,15 +161,6 @@ function commande-write() {
 	
 }
 
-function commande-connect() {
-	if test -n $3; then
-		fichCo $1 $2
-		connection $3 $2
-	else 
-		erreur
-	fi
-}
-
 function commande-who() {
 	cat Connexions | grep $1 | cut -n -d \; -f 1,3
 }
@@ -184,18 +182,28 @@ function erreur() {
 }
 
 function commande-exit() {
-	fichCo $1 $2
-	exit 0
+	if [ $cpt -ge 1 ] ; then
+		cpt=`expr $cpt - 1`
+		fichCo $1 $2
+		break
+	elif [ $cpt -eq 0 ] ; then
+		fichCo $1 $2
+		exit 0
+	else 
+		erreur
+	fi
 }	
 
 function fichCo() {
 	mv Connexions Connexionstmp
-	cat Connexionstmp | grep -v $2 | grep -v $1 > Connexions
+	cat Connexionstmp | grep -v ".*$2.*$1.*" > Connexions
 	rm Connexionstmp
 }
 
 # récupération de la date au format "jour num_jour mois année
 date=$(date | cut -d \( -f 1 )
+
+cpt=0
 
 if test $# -ge 1
 then
