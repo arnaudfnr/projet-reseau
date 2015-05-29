@@ -126,9 +126,7 @@ function commande-passwd() {
 		echo -e "Retaper le nouveau mot de passe : \c"
 		read pass2
 		if test $pass = $pass2 ; then
-			mv users userstmp
-			sed -u 's/'$2' ;\(.*\);.*/'$2' ;\1; '$pass'/' userstmp > users
-			rm userstmp
+			sed -i 's/'$2' ;\(.*\);.*/'$2' ;\1; '$pass'/' users
 		else 
 			echo "Les mots de passe sont différents !" 
 			commande-passwd $1 $2 $3
@@ -213,14 +211,68 @@ function commande-host(){
 			echo "$nom" >> machines;;
 			2) echo "Entrer le nom de la machine à supprimer"
 			read nom
-			mv machines machinestmp
-			sed -u "/$nom/d" machinestmp > machines
-			rm machinestmp;;
+			sed -i "/$nom/d" machines
 		esac
 	else
 		echo "Vous n'avez pas l'autorisation d'accéder à la liste des machines du réseau"
 	fi
+}
 
+function commande-users(){
+	if [ $2 = "admin" ]; then
+		echo -e "\n1 - Ajouter un utilisateur"
+		echo "2 - Supprimer un utilisateur"
+		echo "3 - Modifier les droits d'un utilisateur"
+		echo "4 - modifier le mot de passe d'un utilisateur"
+		read choix
+		case $choix in
+			1) echo -e "\nEntrer le nom du nouvel utilisateur"
+				read nom
+				echo "Entrer le mot de passe du nouvel utilisateur"
+				read mdp
+				echo "Entrer la liste des machines auxquelles l'utilisateur peut se connecter en les séparant d'une virgule"
+				read machine
+				echo -e "$nom\t; $machine ; $mdp" >> users;;
+			2)echo -e "\nListe des utilisateurs"
+				cat users | cut -d \; -f 1 
+				echo -e "\nEntrer le nom de l'utilisateur à supprimer"
+				read nom
+				sed -i "/$nom.*/d" users;;
+			3)echo -e "\nListe des utilisateurs"
+				cat users | cut -d \; -f 1 
+			       	echo -e "\nEntrer le nom de l'utilisateur"
+				read nom
+				echo -e "\n1 - Retirer des droits"
+				echo "2 - Ajouter des droits"
+				read choix2
+				if [ $choix2 -eq 1 ]; then
+					echo -e "\nliste des machines de $nom :"
+					cat users | grep $nom | cut -d \; -f 2
+					echo -e "\nRentrer le nom des machines à retirer à $nom"
+					read machine
+					# chercher comment supprimer seulement la machine
+					# cat users | grep $nom | sed "s/$machine//" > userstmp
+				
+				elif [ $choix2 -eq 2 ]; then
+					echo -e "\nliste des machines de $nom :"
+					cat users | grep $nom | cut -d \; -f 2
+					echo -e "\nRentrer le nom des machines à ajouter à $nom"
+					read machine	
+				else
+					echo "Choix incorrect"	
+				fi;;
+
+			4)echo -e "\nListe des utilisateurs"
+				cat users | cut -d \; -f 1 
+				echo -e "\nEntrer le nom d'utilisateur"
+				read nom
+				echo -e "\nChoisir un nouveau mot de passe"
+				read mdp;;
+		esac
+
+	else
+		echo "Vous n'avez pas l'autorisation d'accéder à cette commande"
+	fi
 }
 
 
