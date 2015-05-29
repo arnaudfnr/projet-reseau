@@ -200,6 +200,31 @@ function fichCo() {
 	rm Connexionstmp
 }
 
+function commande-host(){
+	if [ $2 = "admin" ]; then
+		echo "liste des machines du réseau"
+		cat machines
+		echo -e "\n1 - Ajouter une machine"
+       		echo "2 - Supprimer une machine"
+		read choix
+		case $choix in
+			1) echo "Entrer le nom de la machine à ajouter"
+			read nom
+			echo "$nom" >> machines;;
+			2) echo "Entrer le nom de la machine à supprimer"
+			read nom
+			mv machines machinestmp
+			sed -u "/$nom/d" machinestmp > machines
+			rm machinestmp;;
+		esac
+	else
+		echo "Vous n'avez pas l'autorisation d'accéder à la liste des machines du réseau"
+	fi
+
+}
+
+
+
 # récupération de la date au format "jour num_jour mois année
 date=$(date | cut -d \( -f 1 )
 
