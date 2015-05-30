@@ -4,10 +4,16 @@
 
 #######################################################################################################
 #			fonction interaction
-# $1(machine)	 $2(user)
-# tq vrai affichage du prompt user@machine
-# récupération du nom de la commande et de ses arguments 
+#
+# $1(machine)	 $2(user) $3 	(user précédent)
+# On distingue les prompts admin et user et on les affiche dans une boucle infinie
+# récupération du nom de la commande et de ses arguments, vérification du type puis ajout du préfixe commande ou admin selon les cas
 # appel de la fonction commande en lui envoyant les arguments
+#
+# Dans la partie user : 
+# La commande exit doit permettre de se reconnecter à l'utilisateur précédent et s'il y en a un, son nom est stocké dans $3 (voir "su" et "connect") d'où la condition. 
+# Une autre condition teste si le fichier msgnom_utilisateur existe. Si c'est le cas, une discussion a été ouverte par un autre utilisateur.
+# On récupère alors le nom et la machine de l'envoyeur renseigné dans le fichier (cf commande-write) et on lance la commande write avec la réponse de l'utilisateur (formée par les 3 arguments du read)
 #
 ########################################################################################################
 
@@ -17,7 +23,8 @@ function interaction() {
 		if [ $2 = "admin" ]; then
 			echo -e "\nrvsh > \c"
 			read cmd arg1 arg2
-			if [ "$(type -t admin-$cmd)" = "function" ]; then
+			
+			if [ "$(type -t admin-$cmd)" = "function" ]; then 
 				admin-$cmd NULL $2 $arg1 $arg2
 			elif [ "$(type -t commande-$cmd)" = "function" ]; then
 				commande-$cmd NULL $2 $arg1 $arg2
@@ -31,18 +38,14 @@ function interaction() {
 			fun="commande-$cmd"	
 			if [ "$(type -t $fun)" = "function" ]; then
 				if [ $cmd = "exit" ]; then
-					arg1=$3
+					arg1=$3 
 				fi
 	   			$fun $1 $2 $arg1 "$arg2"
+
 			elif [ -e msg$2 ]; then
-				for i in $(cat Connexions | grep -v $2 | cut -d \; -f 1)
-				do
-					sender=$(tail -n 1 msg$2 | grep "> $2@$1" | cut -d @ -f 1)
-					if [ $i = $sender ]; then
-						mach=$(tail -n 2 msg$2 | grep "> $2@$1" | cut -d \> -f 1 | cut -d @ -f 2)
-						commande-write $1 $2 $sender@$mach "$cmd $arg1 $arg2"
-					fi
-				done
+				sender=$(cat msg$2 | cut -d @ -f 1)
+				mach=$(cat msg$2 | cut -d \> -f 1 | cut -d @ -f 2)
+				commande-write $1 $2 $sender@$mach "$cmd $arg1 $arg2"
 			else
 	  			echo "Commande non comprise !"
 			fi	
@@ -52,16 +55,17 @@ function interaction() {
 }
 
 
-
 ######################################################################################################
 #			fonction connection
 #
-# $1(machine)	 $2(user)
+# $1(machine)	 $2(user)    $3 (user précédent)
 # on test si l'utilisateur a le droit de se connecter à la machine
-# on test si le mdp est le bon
-# on récupère la partie derrière le 3eme ; (cut -d \; -f 3) à la ligne de l'user dans le fichier user
-# on récupère le tty et on écrit les informations dans le fichier Connexions
-# appel de la fonction interaction en lui envoyant machine et user
+# on test si le mdp est celui renseigné dans le fichier users (pour cela on récupère la partie derrière le 3e ; à la ligne de l'user 
+# on récupère la date au format "jour mois année heure" puis on écrit les informations dans le fichier Connexions (qui contient tous les utilisateurs actuellement connectés et sur quelle(s) machine(s))
+# On va ensuite modifier le fichier usersinfos (utilisé pour la commande finger) pour mettre à jour la dernière date de connexion ainsi que le terminal utilisé.			
+# Pour cela on récupère tous les champs sauf les deux derniers (terminal et date) qui doivent être mis à jour puis on les envoie dans un fichier temporaire.
+# On supprime l'ancienne ligne puis on ajoute la nouvelle dans le fichier usersinfos.
+# appel de la fonction interaction en lui envoyant machine et user (et l'user précédent si l'on se connecte à partir de la commande su ou conect)
 #
 ########################################################################################################
 
@@ -70,19 +74,15 @@ function connection() {
 		then
 			echo -e "Rentrez votre mot de passe : \c"
 			read -s mdp
-
 			if [ $mdp = $(grep $2 users | cut -d \; -f 3) ]; then
-
-					date=$(date | cut -d \( -f 1 ) # récupération de la date au format "jour num_jour mois année
+			
+					date=$(date | cut -d \( -f 1 ) 
 					echo "$2 ; $1 ; $date" >> Connexions
-					touch tmp
-					echo -e "$(cat usersinfos | grep  $2 | cut -d \; -f 1-3)\c" > tmp
-					echo ";$tty ;$date" >> tmp
-					mv usersinfos infostmp
-					cat infostmp | grep -v $2 > usersinfos
+					i=`expr $(cat Champs | wc -l) - 2`
+					echo -e "$(cat usersinfos | grep  $2 | cut -d \; -f 1-$i;$tty ;$date" > tmp
+					sed -i "/$2/d" usersinfos
 					cat tmp >> usersinfos
-					rm tmp	
-					rm infostmp
+					rm tmp
 		
 					interaction $1 $2 $3
 			else
@@ -95,6 +95,16 @@ function connection() {
 	fi
 
 }
+
+######################################################################################################
+#			fonction connection-admin
+#
+# 
+# connection en mode admin
+# vérification du mdp en le comparant à celui stocké dans le fichier spécial passAdmin
+# appel de la fonction interaction en lui envoyant NULL pour la machine et admin en user
+#
+########################################################################################################
 
 function connection-admin(){
 	echo -e "Rentrez votre mot de passe : \c"
