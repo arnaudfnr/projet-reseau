@@ -285,7 +285,7 @@ function admin-users(){
 					   while [ $i -le $(echo $machines | wc -w) ] 
 					   do
 						mach=$(echo $machines | cut -d ' ' -f $i)
-						cat users | grep $nom | sed -i "s/$nom;\(.*\)$mach \(.*\)/$nom;\1\2/" users
+						sed -i "s/$nom;\(.*\)$mach \(.*\)/$nom;\1\2/" users
 						i=`expr $i + 1`
 					   done
 					   break;;
