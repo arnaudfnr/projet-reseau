@@ -33,7 +33,16 @@ function interaction() {
 				if [ $cmd = "exit" ]; then
 					arg1=$3
 				fi
-	   			$fun $1 $2 $arg1 $arg2
+	   			$fun $1 $2 $arg1 "$arg2"
+			elif [ -e msg$2 ]; then
+				for i in $(cat Connexions | grep -v $2 | cut -d \; -f 1)
+				do
+					sender=$(tail -n 1 msg$2 | grep "> $2@$1" | cut -d @ -f 1)
+					if [ $i = $sender ]; then
+						mach=$(tail -n 2 msg$2 | grep "> $2@$1" | cut -d \> -f 1 | cut -d @ -f 2)
+						commande-write $1 $2 $sender@$mach "$cmd $arg1 $arg2"
+					fi
+				done
 			else
 	  			echo "Commande non comprise !"
 			fi	
@@ -65,7 +74,7 @@ function connection() {
 			if [ $mdp = $(grep $2 users | cut -d \; -f 3) ]; then
 
 					date=$(date | cut -d \( -f 1 ) # récupération de la date au format "jour num_jour mois année
-
+					touch erreur$2@$1.log
 					echo "$2 ; $1 ; $date" >> Connexions
 					touch tmp
 					echo -e "$(cat usersinfos | grep  $2 | cut -d \; -f 1-3)\c" > tmp
@@ -95,7 +104,7 @@ function connection-admin(){
 	if [ $mdp = $(cat passAdmin) ]; then					
 		interaction NULL admin
 	else
-		echo "\nMauvais mot de passe !"
+		echo -e "\nMauvais mot de passe !"
 		connection-admin
 	fi
 }
@@ -121,7 +130,7 @@ function commande-connect() {
 
 function commande-passwd() {
 	local pass pass2
-	echo "\nChangement de mot de passe pour $2"
+	echo -e "\nChangement de mot de passe pour $2"
         echo -e "Mot de passe actuel : \c"
 	read -s pass
 	if [ $2 = "admin" ]; then pass2=$(cat passAdmin) 
@@ -130,7 +139,7 @@ function commande-passwd() {
 	if [ $pass =  $pass2 ] ; then
 		echo -e "\nNouveau mot de passe : \c"
 		read -s pass
-		echo -e "\nRetaper le nouveau mot de passe : \c"
+		echo -e "\nConfirmer le nouveau mot de passe : \c"
 		read -s pass2
 		if [ $pass = $pass2 ] ; then
 			sed -i 's/'$2';\(.*\);.*/'$2';\1; '$pass'/' users
@@ -147,19 +156,21 @@ function commande-passwd() {
 function commande-write() {
 	local receiver=$(echo $3 | cut -d @ -f 1)
 	local mach=$(echo $3 | cut -d @ -f 2)
-	if [ $(cat Connexions | grep $receiver | grep -c $mach) -ge 1 ]; then 
-		if [ $4 = "exit" ]; then 
-			echo ""
-		else
+	
+	if [ "$4" = "exit" ]; then 
+			rm msg$receiver 2>> erreur.log
+			rm msg$2 2>> erreur.log
+	else
+		if [ $(cat Connexions | grep $receiver | grep -c $mach) -ge 1 ]; then 
 			term=$(cat usersinfos | grep $receiver | cut -d \; -f 4)
-			echo "" > \/dev\/pts\/$term
-			echo "$2@$1 > $4" > \/dev\/pts\/$term
-			echo -e "$receiver@$mach > \c" > \/dev\/pts\/$term
+			echo "" > \/dev\/$term
+			echo "$2@$1 > $4" > \/dev\/$term
+			echo "$2@$1 > $receiver@$mach : $4" >> msg$receiver
 			read msg
-			commande-write $1 $2 $3 $msg
+			commande-write $1 $2 $3 "$msg"
+		else 
+			echo "L'utilisateur n'est pas connecté à la machine !"
 		fi
-	else 
-		erreur
 	
 	fi
 	
@@ -253,26 +264,24 @@ function admin-users(){
 			   do
 				echo -e "Entrer le mot de passe du nouvel utilisateur : \c"
 				read -s mdp
-				echo -e "Confirmer le mot de passe : \c"
+				echo -e "\nConfirmer le mot de passe : \c"
 				read -s mdp2
 				if [ $mdp != $mdp2 ] ; then 
-					echo "Les mots de passe sont différents !" 
+					echo -e "\nLes mots de passe sont différents !" 
 				fi
 			   done   
 		           echo "Entrer la liste des machines auxquelles l'utilisateur peut se connecter en les séparant par un espace"
 			   read machine
 		           echo "$nom; $machine ; $mdp" >> users
-			   echo "$nom;" >>usersinfos
+			   echo "$nom;" >> usersinfos
 		           break;;
 
-			2) echo -e "\nEntrer le nom de l'utilisateur à supprimer : \c"
-			   read nom
+			2) ask-nom
 			   sed -i "/$nom/d" users
-			   sed -i "/$nom.d" usersinfos
+			   sed -i "/$nom/d" usersinfos
 			   break;;
 
-			3) echo -e "\nEntrer le nom de l'utilisateur : \c"
-		    	   read nom
+			3) ask-nom
 			   echo -e "\nliste des machines de $nom :"
 			   echo -e "$(cat users | grep $nom | cut -d \; -f 2)\n"
 				
@@ -285,7 +294,7 @@ function admin-users(){
 					   while [ $i -le $(echo $machines | wc -w) ] 
 					   do
 						mach=$(echo $machines | cut -d ' ' -f $i)
-						sed -i "s/$nom;\(.*\)$mach \(.*\)/$nom;\1\2/" users
+						cat users | grep $nom | sed -i "s/$nom;\(.*\)$mach \(.*\)/$nom;\1\2/" users
 						i=`expr $i + 1`
 					   done
 					   break;;
@@ -302,8 +311,7 @@ function admin-users(){
 			   done
 			   break;;
 
-			4) echo -e "\nEntrer le nom d'utilisateur"
-			   read nom
+			4) ask-nom
 			   echo -e "\nChoisir un nouveau mot de passe"
 			   read mdp
 			   sed -i "s/$nom;\(.*\);.*/$nom;\1; $mdp/" users
@@ -316,6 +324,19 @@ function admin-users(){
 	done
 }
 
+function ask-nom() {
+	echo -e "\nEntrer le nom d'utilisateur : \c"
+	read nom
+	verif-nom $nom
+}
+
+function verif-nom() {
+	if [ -z "$(cat users | grep $1)" ]; then
+		echo "L'utilisateur n'existe pas !"
+		ask-nom
+	fi
+}
+	
 function erreur() { 
 	echo "Il y a une erreur. Veuillez recommencer." 
 }
@@ -327,6 +348,7 @@ function commande-exit() {
 		break
 	elif [ $cpt -eq 0 ] ; then
 		fichCo $1 $2
+		rm erreur.log
 		exit 0
 	else 
 		erreur
