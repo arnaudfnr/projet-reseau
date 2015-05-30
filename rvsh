@@ -88,7 +88,7 @@ function connection() {
 					date=$(date | cut -d \( -f 1 ) 
 					echo "$2 ; $1 ; $date" >> Connexions
 					i=`expr $(cat Champs | wc -l) - 2`
-					echo -e "$(cat usersinfos | grep  $2 | cut -d \; -f 1-$i;$tty ;$date" > tmp
+					echo "$(cat usersinfos | grep  $2 | cut -d \; -f 1-$i) ;$tty ;$date" > tmp
 					sed -i "/$2/d" usersinfos
 					cat tmp >> usersinfos
 					rm tmp
@@ -424,11 +424,10 @@ function erreur() {
 function commande-exit() {
 	if [ $cpt -ge 1 ]; then
 		cpt=`expr $cpt - 1`
-		sed -i '/$2.*$1.*/d' Connexions
+		sed -i "/$2.*$1.*/d" Connexions
 		break
 	elif [ $cpt -eq 0 ]; then
-		sed -i '/$2.*$1.*/d' Connexions
-		rm erreur.log
+		sed -i "/$2.*$1.*/d" Connexions
 		exit 0
 	else 
 		erreur
