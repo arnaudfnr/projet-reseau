@@ -1,14 +1,25 @@
-#! /bin/bash
+#!/bin/bash
 
 #include <unistd.h>
 
-#######################################################################################################
-#			fonction interaction
-# $1(machine)	 $2(user)
-# tq vrai affichage du prompt user@machine
-# récupération du nom de la commande et de ses arguments 
-# appel de la fonction commande en lui envoyant les arguments
-#
+########################################################################################################
+#			fonction interaction							       
+#												       
+# $1(machine)	 $2(user) $3 	(user précédent)						       
+#												       
+# On distingue les prompts admin et user et on les affiche dans une boucle infinie		       
+# Récupération du nom de la commande et de ses arguments, vérification du type 			       
+# Ajout du préfixe commande ou admin selon les cas						       
+# Appel de la fonction commande en lui envoyant les arguments					       
+#												       
+# Dans la partie user : 									       
+# La commande exit doit permettre de se reconnecter à l'utilisateur précédent (s'il y en a un)	       
+# Son nom est alors stocké dans $3 (voir "su" et "connect") d'où la condition. 			      
+# Une autre condition teste si le fichier msgnom_utilisateur existe. 				       
+# Si c'est le cas, une discussion a été ouverte par un autre utilisateur.			       
+# On récupère alors le nom et la machine de l'envoyeur renseigné dans le fichier (cf commande-write)   
+# Enfin on lance la commande write avec la réponse de l'utilisateur(formée par les 3 arguments du read)
+#												       
 ########################################################################################################
 
 function interaction() {
@@ -17,7 +28,8 @@ function interaction() {
 		if [ $2 = "admin" ]; then
 			echo -e "\nrvsh > \c"
 			read cmd arg1 arg2
-			if [ "$(type -t admin-$cmd)" = "function" ]; then
+			
+			if [ "$(type -t admin-$cmd)" = "function" ]; then 
 				admin-$cmd NULL $2 $arg1 $arg2
 			elif [ "$(type -t commande-$cmd)" = "function" ]; then
 				commande-$cmd NULL $2 $arg1 $arg2
@@ -31,18 +43,14 @@ function interaction() {
 			fun="commande-$cmd"	
 			if [ "$(type -t $fun)" = "function" ]; then
 				if [ $cmd = "exit" ]; then
-					arg1=$3
+					arg1=$3 
 				fi
 	   			$fun $1 $2 $arg1 "$arg2"
+
 			elif [ -e msg$2 ]; then
-				for i in $(cat Connexions | grep -v $2 | cut -d \; -f 1)
-				do
-					sender=$(tail -n 1 msg$2 | grep "> $2@$1" | cut -d @ -f 1)
-					if [ $i = $sender ]; then
-						mach=$(tail -n 2 msg$2 | grep "> $2@$1" | cut -d \> -f 1 | cut -d @ -f 2)
-						commande-write $1 $2 $sender@$mach "$cmd $arg1 $arg2"
-					fi
-				done
+				sender=$(cat msg$2 | cut -d @ -f 1)
+				mach=$(cat msg$2 | cut -d \> -f 1 | cut -d @ -f 2)
+				commande-write $1 $2 $sender@$mach "$cmd $arg1 $arg2"
 			else
 	  			echo "Commande non comprise !"
 			fi	
@@ -52,16 +60,21 @@ function interaction() {
 }
 
 
-
 ######################################################################################################
 #			fonction connection
 #
-# $1(machine)	 $2(user)
-# on test si l'utilisateur a le droit de se connecter à la machine
-# on test si le mdp est le bon
-# on récupère la partie derrière le 3eme ; (cut -d \; -f 3) à la ligne de l'user dans le fichier user
-# on récupère le tty et on écrit les informations dans le fichier Connexions
-# appel de la fonction interaction en lui envoyant machine et user
+# $1(machine)	 $2(user)    $3 (user précédent)
+# On teste si l'utilisateur a le droit de se connecter à la machine
+# On teste si le mdp est celui renseigné dans le fichier users 
+# Pour cela on récupère la partie derrière le 3e ; à la ligne de l'user 
+# On récupère la date au format "jour mois année heure" 
+# On écrit ensuite les informations dans le fichier Connexions
+# Le fichier Connexions contient tous les utilisateurs actuellement connectés et sur quelle(s) machine(s)
+# On va ensuite modifier le fichier usersinfos (utilisé pour la commande finger) 			
+# Pour cela on récupère tous les champs sauf les deux derniers (terminal et date) qui doivent être mis à jour 
+# On les stocke d'abord dans un fichier temporaire pour pouvoir supprimer l'ancienne ligne dans usersinfos avec sed
+# On supprime l'ancienne ligne puis on ajoute la nouvelle dans le fichier usersinfos.
+# Appel de la fonction interaction en lui envoyant machine et user (et user précédent s'il existe)
 #
 ########################################################################################################
 
@@ -70,20 +83,15 @@ function connection() {
 		then
 			echo -e "Rentrez votre mot de passe : \c"
 			read -s mdp
-
 			if [ $mdp = $(grep $2 users | cut -d \; -f 3) ]; then
-
-					date=$(date | cut -d \( -f 1 ) # récupération de la date au format "jour num_jour mois année
-					touch erreur$2@$1.log
+			
+					date=$(date | cut -d \( -f 1 ) 
 					echo "$2 ; $1 ; $date" >> Connexions
-					touch tmp
-					echo -e "$(cat usersinfos | grep  $2 | cut -d \; -f 1-3)\c" > tmp
-					echo ";$tty ;$date" >> tmp
-					mv usersinfos infostmp
-					cat infostmp | grep -v $2 > usersinfos
+					i=`expr $(cat Champs | wc -l) - 2`
+					echo "$(cat usersinfos | grep  $2 | cut -d \; -f 1-$i) ;$tty ;$date" > tmp
+					sed -i "/$2/d" usersinfos
 					cat tmp >> usersinfos
-					rm tmp	
-					rm infostmp
+					rm tmp
 		
 					interaction $1 $2 $3
 			else
@@ -97,6 +105,15 @@ function connection() {
 
 }
 
+######################################################################################################
+#			fonction connection-admin
+#
+# connection en mode admin
+# vérification du mdp en le comparant à celui stocké dans le fichier spécial passAdmin
+# appel de la fonction interaction en lui envoyant NULL pour la machine et admin en user
+#
+########################################################################################################
+
 function connection-admin(){
 	echo -e "Rentrez votre mot de passe : \c"
 	read -s mdp
@@ -109,15 +126,33 @@ function connection-admin(){
 	fi
 }
 
+######################################################################################################
+#			fonction su
+#
+# $1 (machine) $2 (ancien user) $3 (nouvel user)
+# Si le nom du nouvel utilisateur a été donné en argument, on incrémente un compteur
+# On appelle ensuite la fonction connexion
+# On donne le nouvel utilisateur en argument 2 mais aussi celui de l'ancien en argument 3
+# On pourra alors le réutiliser lorsque le nouvel utilisateur tapera la cmd exit pour se reconnecter
+#
+########################################################################################################
 
 function commande-su() {
 	if [ -n $3 ]; then
 		cpt=`expr $cpt + 1`
-		connection $1 $3 $2 #on donne en argument le nom de la machine, le nom du nouvel utilisateur ainsi que le nom de 			l'utilisateur précédent.	
+		connection $1 $3 $2 	
 	else 
 		erreur
 	fi
 }
+
+######################################################################################################
+#			fonction connect
+#
+# $1 (ancienne machine) $2 (user) $3 (nouvelle machine)
+# Fonctionne sur le même principe que la commande su.
+#
+########################################################################################################
 
 function commande-connect() {
 	if [ -n $3 ]; then
@@ -127,6 +162,16 @@ function commande-connect() {
 		erreur
 	fi
 }
+
+######################################################################################################
+#			fonction passwd
+#
+# $1 (machine) $2 (user)
+# On redemande d'abord le mdp de l'user (ou de l'admin) et on le vérifie
+# Si c'est bon, on demande le nouveau mdp et sa confirmation sinon on recommence
+# Enfin on modifie le fichier users avec la commande sed -i
+#
+########################################################################################################
 
 function commande-passwd() {
 	local pass pass2
@@ -145,36 +190,57 @@ function commande-passwd() {
 			sed -i 's/'$2';\(.*\);.*/'$2';\1; '$pass'/' users
 		else 
 			echo "Les mots de passe sont différents !" 
-			commande-passwd $1 $2 $3
+			commande-passwd $1 $2
 		fi
 	else 
 		echo "Mauvais mot de passe !"
-		commande-passwd $1 $2 $3
+		commande-passwd $1 $2
 	fi	
 }
+
+######################################################################################################
+#			fonction write
+#
+# $1 (machine) $2 (user) $3 (destinataire@samachine) $4 (message)
+# On commence par créer deux variables locales receiver et mach à partir de l'argument 3
+# Si le message est exit, on détruit le fichier msgnom_destinataire et la fonction se termine
+# Sinon on commence par vérifier si le destinataire est connecté
+# Si c'est le cas, on va chercher son numéro de terminal dans le fichier usersinfos
+# On envoie alors un prompt spécial envoyeur@samachine suivi du message sur le terminal du destinataire
+# On stocke dans le fichier msgnom_destinataire les métadonnées du message
+# Ce fichier permettra au dernier de savoir qu'il a recu un message et de qui
+# On pourra alors ouvrir une discussion de son côté (cf fonction interaction)
+# Enfin on redemande un nouveau message et on relance la commande write
+#
+########################################################################################################
 
 function commande-write() {
 	local receiver=$(echo $3 | cut -d @ -f 1)
 	local mach=$(echo $3 | cut -d @ -f 2)
 	
 	if [ "$4" = "exit" ]; then 
-			rm msg$receiver 2>> erreur.log
-			rm msg$2 2>> erreur.log
+			rm msg$receiver
 	else
 		if [ $(cat Connexions | grep $receiver | grep -c $mach) -ge 1 ]; then 
 			term=$(cat usersinfos | grep $receiver | cut -d \; -f 4)
-			echo "" > \/dev\/$term
-			echo "$2@$1 > $4" > \/dev\/$term
-			echo "$2@$1 > $receiver@$mach : $4" >> msg$receiver
+			echo -e "\n$2@$1 > $4" > \/dev\/$term
+			echo "$2@$1 > $receiver@$mach $(date)" >> msg$receiver
 			read msg
 			commande-write $1 $2 $3 "$msg"
 		else 
 			echo "L'utilisateur n'est pas connecté à la machine !"
 		fi
-	
 	fi
-	
 }
+
+######################################################################################################
+#			fonction who
+#
+# $1 (machine)
+# On vérifie tout d'abord que l'user est bien connecté à une machine (l'admin ne l'est pas)
+# Ensuite on affiche tous les utilisateurs connectés à la machine ainsi que leur date de connexion
+#
+########################################################################################################
 
 function commande-who() {
 	if [ $1 = NULL ]; then
@@ -184,9 +250,23 @@ function commande-who() {
 	fi
 }
 
+######################################################################################################
+#			fonction rusers
+#
+# Le fichier Connexions stocke toutes les infos nécessaires pour la commande rusers, donc on l'affiche
+#
+########################################################################################################
+
 function commande-rusers() { 
 	cat Connexions 
 }
+
+######################################################################################################
+#			fonction rhost
+#
+# Le fichier machine stocke toutes les machines du réseau, donc on l'affiche
+#
+########################################################################################################
 
 function commande-rhost() { 
 	cat machines 
@@ -269,11 +349,11 @@ function admin-users(){
 				if [ $mdp != $mdp2 ] ; then 
 					echo -e "\nLes mots de passe sont différents !" 
 				fi
-			   done 
+			   done   
 		           echo "Entrer la liste des machines auxquelles l'utilisateur peut se connecter en les séparant par un espace"
 			   read machine
 		           echo "$nom; $machine ; $mdp" >> users
-			   echo "$nom; ; ; ;" >> usersinfos
+			   echo "$nom;" >> usersinfos
 		           break;;
 
 			2) ask-nom
@@ -342,36 +422,27 @@ function erreur() {
 }
 
 function commande-exit() {
-	if [ $cpt -ge 1 ] ; then
+	if [ $cpt -ge 1 ]; then
 		cpt=`expr $cpt - 1`
-		fichCo $1 $2
+		sed -i "/$2.*$1.*/d" Connexions
 		break
-	elif [ $cpt -eq 0 ] ; then
-		fichCo $1 $2
-		rm erreur.log
+	elif [ $cpt -eq 0 ]; then
+		sed -i "/$2.*$1.*/d" Connexions
 		exit 0
 	else 
 		erreur
 	fi
 }	
 
-function fichCo() {
-	mv Connexions Connexionstmp
-	cat Connexionstmp | grep -v ".*$2.*$1.*" > Connexions
-	rm Connexionstmp
-}
-
 # récupération du numéro de terminal (pts/n)
 tty=$(tty | cut -d \/ -f 3,4)
 cpt=0
 PS3="Votre choix ? "
 
-if test $# -ge 1
-then
+if [ $# -ge 1 ]; then
 	case $1 in
 	
-	-connect) if test $# -ge 3	# test pour savoir si l'user a bien envoyé tous les args
-		  then
+	-connect) if [ $# -ge 3	]; then # test pour savoir si l'user a bien envoyé tous les args
 			  connection $2 $3 	# $2(machine)	$3(user)
 		  else
 			erreur
@@ -382,3 +453,4 @@ then
 else 
 	erreur
 fi
+
