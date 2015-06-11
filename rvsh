@@ -313,6 +313,118 @@ function commande-finger() {
 	fi
 }
 
+#########################################################################################################
+#			fonction afinger
+#
+# L'administrateur choisi s'il veut ajouter, supprimer ou modifier les informations d'un utilisateur
+# L'utilisateur choisi ce qu'il veut modifier à l'aide de menus
+#
+#########################################################################################################
+
+function admin-afinger(){
+	local nom nom2
+	echo -e "\nListe des utilisateurs"
+	cat users | cut -d \; -f 1 
+		echo -e "\nListe des informations"
+			  local i=1 champ
+			  while read champ
+			  do
+				echo "$champ"
+			  done < Champs
+			  echo -e "\n"
+	select choix in "Ajouter des informations à un utilisateur" "Modifier des informations d'un utilisateur" "Supprimer des informations à un utilisateur" "Ne rien faire"
+	do
+		case $REPLY in
+			1) while [ $nom != $nom2 ]; do
+				echo "Entrer le nom de l'utilisateur à modifier"
+			  	read nom
+			  	nom2=$(cat usersinfos | grep $nom | cut -d \; -f 1)
+			   	if [ $nom != $nom2 ]; then
+				    echo "l'utilisateur n'existe pas"
+			    	fi
+		    	  done 
+			  i=1
+			  while read champ
+			  do
+				echo "$champ  : $(cat usersinfos | grep $nom | cut -d \; -f $i)"
+				i=`expr $i + 1` 
+			  done < Champs
+			  echo "Que voulez-vous ajouter ?"
+			  read ajout
+			  echo $ajout >> Champs
+			  echo "Quelle valeur voulez-vous donner à $ajout pour $nom ?"
+			  read val
+			  sed -i "s/^\([^$nom].*\)$/\1; NC/" usersinfos	       
+			  sed -i "s/^\([$nom].*\)$/\1; $val/" usersinfos	       
+			 break;;
+			2) while [ $nom != $nom2 ]; do
+				echo "Entrer le nom de l'utilisateur à modifier"
+			  	read nom
+			  	nom2=$(cat usersinfos | grep $nom | cut -d \; -f 1)
+			   	if [ $nom != $nom2 ]; then
+				    echo "l'utilisateur n'existe pas"
+			    	fi
+		    	  done 
+			  i=1 
+			  while read champ
+			  do
+				echo "$champ  : $(cat usersinfos | grep $nom | cut -d \; -f $i)"
+				i=`expr $i + 1` 
+			  done < Champs
+			  echo "Que voulez-vous modifier ?"
+			  read modif
+			  i=1
+			  while read champ && [ $modif != $champ ]
+			  do
+				  i=`expr $i + 1` 
+			  done < Champs
+			  if [ $modif = $champ ]; then
+			  	echo "Quelle valeur voulez-vous donner à $modif pour $nom ?"
+			  	read val
+				sup=$(cat usersinfos | grep $nom | cut -d \; -f $i)
+				sed -i "s/^\([$nom].*\)$sup\(.*\)/\1$val\2/" usersinfos
+			else
+				echo "Aucun champ ne correspond"
+			fi
+			break;;	
+			3) while [ $nom != $nom2 ]; do
+				echo "Entrer le nom de l'utilisateur à modifier"
+			  	read nom
+			  	nom2=$(cat usersinfos | grep $nom | cut -d \; -f 1)
+			   	if [ $nom != $nom2 ]; then
+				    echo "l'utilisateur n'existe pas"
+			    	fi
+		    	  done 
+			  i=1 
+			  while read champ
+			  do
+				echo "$champ  : $(cat usersinfos | grep $nom | cut -d \; -f $i)"
+				i=`expr $i + 1` 
+			done < Champs
+			echo " Que voulez vous supprimer ?"
+			read modif
+			i=1
+			while read champ && [ $modif != $champ ]
+			do
+				i=`expr $i + 1`
+			done < Champs
+			if [ $modif =  $champ ]; then
+				sup=$(cat usersinfos | grep $nom | cut -d \; -f $i)
+				sed -i "s/^\([$nom].*\)$sup\(.*\)/\1NC\2/" usersinfos
+			else
+				echo "Aucun champ ne correspond"
+			fi
+			break;;
+		4)break;;
+	*) echo "Choix non compris !";;
+
+		esac
+	done
+
+
+}
+
+
 function admin-host(){
 	echo "liste des machines du réseau"
 	cat machines
