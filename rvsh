@@ -335,14 +335,7 @@ function admin-afinger(){
 	select choix in "Ajouter des informations à un utilisateur" "Modifier des informations d'un utilisateur" "Supprimer des informations à un utilisateur" "Ne rien faire"
 	do
 		case $REPLY in
-			1) while [ $nom != $nom2 ]; do
-				echo "Entrer le nom de l'utilisateur à modifier"
-			  	read nom
-			  	nom2=$(cat usersinfos | grep $nom | cut -d \; -f 1)
-			   	if [ $nom != $nom2 ]; then
-				    echo "l'utilisateur n'existe pas"
-			    	fi
-		    	  done 
+			1)ask-nom
 			  i=1
 			  while read champ
 			  do
@@ -356,15 +349,8 @@ function admin-afinger(){
 			  read val
 			  sed -i "s/^\([^$nom].*\)$/\1; NC/" usersinfos	       
 			  sed -i "s/^\([$nom].*\)$/\1; $val/" usersinfos	       
-			 break;;
-			2) while [ $nom != $nom2 ]; do
-				echo "Entrer le nom de l'utilisateur à modifier"
-			  	read nom
-			  	nom2=$(cat usersinfos | grep $nom | cut -d \; -f 1)
-			   	if [ $nom != $nom2 ]; then
-				    echo "l'utilisateur n'existe pas"
-			    	fi
-		    	  done 
+			  break;;
+			2)ask-nom
 			  i=1 
 			  while read champ
 			  do
@@ -374,49 +360,45 @@ function admin-afinger(){
 			  echo "Que voulez-vous modifier ?"
 			  read modif
 			  i=1
-			  while read champ && [ $modif != $champ ]
+			  while read champ && [ "$modif" != "$champ" ]
 			  do
 				  i=`expr $i + 1` 
 			  done < Champs
-			  if [ $modif = $champ ]; then
+			  if [ "$modif" = "$champ" ]; then
 			  	echo "Quelle valeur voulez-vous donner à $modif pour $nom ?"
 			  	read val
 				sup=$(cat usersinfos | grep $nom | cut -d \; -f $i)
 				sed -i "s/^\([$nom].*\)$sup\(.*\)/\1$val\2/" usersinfos
-			else
+			  else
 				echo "Aucun champ ne correspond"
-			fi
-			break;;	
-			3) while [ $nom != $nom2 ]; do
-				echo "Entrer le nom de l'utilisateur à modifier"
-			  	read nom
-			  	nom2=$(cat usersinfos | grep $nom | cut -d \; -f 1)
-			   	if [ $nom != $nom2 ]; then
-				    echo "l'utilisateur n'existe pas"
-			    	fi
-		    	  done 
+				admin-afinger
+		  	  fi
+		   	  break;;	
+			3)ask-nom
 			  i=1 
 			  while read champ
 			  do
 				echo "$champ  : $(cat usersinfos | grep $nom | cut -d \; -f $i)"
 				i=`expr $i + 1` 
-			done < Champs
-			echo " Que voulez vous supprimer ?"
-			read modif
-			i=1
-			while read champ && [ $modif != $champ ]
-			do
+			  done < Champs
+			  echo " Que voulez vous supprimer ?"
+			  read modif
+			  i=1
+		  	  while read champ && [ "$modif" != "$champ" ]
+			  do
 				i=`expr $i + 1`
-			done < Champs
-			if [ $modif =  $champ ]; then
+			  done < Champs
+			  if [ "$modif" =  "$champ" ]; then
 				sup=$(cat usersinfos | grep $nom | cut -d \; -f $i)
 				sed -i "s/^\([$nom].*\)$sup\(.*\)/\1NC\2/" usersinfos
-			else
+			  else
 				echo "Aucun champ ne correspond"
-			fi
-			break;;
-		4)break;;
-	*) echo "Choix non compris !";;
+				admin-afinger
+		          fi
+		          break;;
+			4)break;;
+			*)echo "Choix non compris !"
+			  admin-afinger;;
 
 		esac
 	done
@@ -525,7 +507,7 @@ function ask-nom() {
 }
 
 function verif-nom() {
-	if [ -z "$(cat users | grep $1)" ]; then
+	if [ $1 != "$(cat users | grep $1 | cut -d \; -f 1)" ]; then
 		echo "L'utilisateur n'existe pas !"
 		ask-nom
 	fi
