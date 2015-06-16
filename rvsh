@@ -86,11 +86,11 @@ function connection() {
 		if [ $(grep -o $1 machines) = $1 ]; then
 			interaction $1 $2 $3
 			break
-		fi
-	elif [ $(grep $2 users | grep -o $1) = $1 ] || [ $2 = "admin" ]; then
+		fi	
+	elif [ $(grep $2 users | grep -o $1) = $1 ]; then
 			echo -e "Rentrez votre mot de passe : \c"
 			read -s mdp
-			if [ $mdp = $(grep $2 users | cut -d \; -f 3) ] || [ $mdp = $(cat passAdmin) ]; then
+			if [ $mdp = $(grep $2 users | cut -d \; -f 3) ]; then
 			
 					date=$(date | cut -d \( -f 1 ) 
 					echo "$2 ; $1 ; $date" >> Connexions
@@ -100,8 +100,7 @@ function connection() {
 			else
 				echo -e "\nMauvais mot de passe !"
 				connection $1 $2 $3
-			fi
-					
+			fi				
 	else 
 		echo "Vous n'avez pas les droits !"
 	fi 2>> erreur.log
@@ -117,17 +116,17 @@ function connection() {
 #
 ########################################################################################################
 
-#function connection-admin(){
-#	echo -e "Rentrez votre mot de passe : \c"
-#	read -s mdp
-#	date=$(date | cut -d \( -f 1 )
-#	if [ $mdp = $(cat passAdmin) ]; then					
-#		interaction NULL admin $1
-#	else
-#		echo -e "\nMauvais mot de passe !"
-#		connection-admin
-#	fi
-#}
+function connection-admin(){
+	echo -e "Rentrez votre mot de passe : \c"
+	read -s mdp
+	date=$(date | cut -d \( -f 1 )
+	if [ $mdp = $(cat passAdmin) ]; then					
+		interaction $1 admin $2
+	else
+		echo -e "\nMauvais mot de passe !"
+		connection-admin
+	fi
+}
 
 ######################################################################################################
 #			fonction su
@@ -150,12 +149,12 @@ function commande-su() {
 			done
 			cpt=`expr $cpt + 1`
 			interaction $mach $3 $2	
-		elif [ "$(grep $3 users)" != "" ] || [ $3 = "admin" ]; then
+		elif [ "$(grep $3 users)" != "" ]; then
 			cpt=`expr $cpt + 1`
 			connection $1 $3 $2 				
-		#elif [ $3 = "admin" ]; then
-		#	cpt=`expr $cpt + 1`
-	#		connection $1 $3 $2		
+		elif [ $3 = "admin" ]; then
+			cpt=`expr $cpt + 1`
+			connection-admin $1 admin $2		
 		else
 			erreur
 		fi 2>> erreur.log
@@ -199,23 +198,18 @@ function commande-passwd() {
 	else pass2=$(grep $2 users | cut -d \; -f 3)
 	fi
 	if [ $pass =  $pass2 ] ; then
-#		echo -e "\nNouveau mot de passe : \c"
-#		read -s pass
-#		echo -e "\nConfirmer le nouveau mot de passe : \c"
-#		read -s pass2
-#		if [ $pass = $pass2 ] ; then
-	#		echo "coucou"
-		./generate 
-		pass_cryp=$(cat tmp | cut -d \$ -f 3)
-		rm tmp
-		echo $pass_cryp
-			if [ $2 = "admin" ]; then sed -i 's/.*/'$pass_cryp'/' passAdmin
-			else sed -i 's/'$2';\(.*\);.*/'$2';\1; '$pass_cryp'/' users
+		echo -e "\nNouveau mot de passe : \c"
+		read -s pass
+		echo -e "\nConfirmer le nouveau mot de passe : \c"
+		read -s pass2
+		if [ $pass = $pass2 ] ; then
+			if [ $2 = "admin" ]; then sed -i 's/.*/'$pass'/' passAdmin
+			else sed -i 's/'$2';\(.*\);.*/'$2';\1; '$pass'/' users
 			fi
-#		else 
-#			echo "Les mots de passe sont différents !" 
-#			commande-passwd $1 $2
-#		fi
+		else 
+			echo "Les mots de passe sont différents !" 
+			commande-passwd $1 $2
+		fi
 	else 
 		echo "Mauvais mot de passe !"
 		commande-passwd $1 $2
@@ -406,6 +400,7 @@ function admin-afinger(){
 function admin-host(){
 	echo "liste des machines du réseau"
 	cat machines
+	echo -e "\n"
 	select choix in "Ajouter une machine" "Supprimer une machine" "Ne rien faire"
 	do
 		case $REPLY in
@@ -427,6 +422,7 @@ function admin-users(){
 	local mdp mdp2
 	echo -e "\nListe des utilisateurs"
 	cat users | cut -d \; -f 1 
+	echo -e "\n"
 	select choix in "Ajouter un utilisateur" "Supprimer un utilisateur" "Modifier les droits d'un utilisateur" "Modifier le mot de passe d'un utilisateur" "Ne rien faire"
 	do
 		case $REPLY in
@@ -523,7 +519,7 @@ function commande-exit() {
 		exit 0
 	else 
 		erreur
-	fi
+	fi 2> erreur.log
 }	
 
 # récupération du numéro de terminal (pts/n)
@@ -539,7 +535,7 @@ if [ $# -ge 1 ]; then
 		  else
 			erreur
 		  fi;;
-	-admin) connection NULL admin;;
+	-admin) connection-admin NULL;;
 	*) erreur;;
 	esac
 else 
