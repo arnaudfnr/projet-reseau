@@ -82,12 +82,7 @@ function interaction() {
 ########################################################################################################
 
 function connection() {
-	if [ $3 = "admin" ]; then
-		if [ $(grep -o $1 machines) = $1 ]; then
-			interaction $1 $2 $3
-			break
-		fi	
-	elif [ $(grep $2 users | grep -o $1) = $1 ]; then
+	if [ $(grep $2 users | grep -o $1) = $1 ]; then
 			echo -e "Rentrez votre mot de passe : \c"
 			read -s mdp
 			if [ $mdp = $(grep $2 users | cut -d \; -f 3) ]; then
@@ -124,7 +119,7 @@ function connection-admin(){
 		interaction $1 admin $2
 	else
 		echo -e "\nMauvais mot de passe !"
-		connection-admin
+		connection-admin $1 $2
 	fi
 }
 
@@ -338,7 +333,7 @@ function admin-afinger(){
 			  echo "Quelle valeur voulez-vous donner à $ajout pour $nom ?"
 			  read val
 			  sed -i "s/^\([^$nom].*\)$/\1;NC /" usersinfos	       
-			  sed -i "s/^\([$nom].*\)$/\1;$val /" usersinfos	       
+			  sed -i "s/^\($nom.*\)$/\1;$val /" usersinfos	       
 			  break;;
 			2)ask-nom
 			  i=1 
@@ -357,11 +352,11 @@ function admin-afinger(){
 		  	if [ "$modif" = "$champ" ]; then
 			  	echo "Quelle valeur voulez-vous donner à "$modif" pour $nom ?"
 			  	read val
-				supr=$(cat usersinfos | grep $nom | cut -d \; -f $i)
 				if [ "$modif" = "Nom" ] ; then
 					sed -i "s/$nom\(.*\)/$val\1/" usersinfos
 				else
-					sed -i "s/\([$nom].*\);$supr\(.*\)/\1;$val \2/" usersinfos
+					supr=$(cat usersinfos | grep $nom | cut -d \; -f $i)
+					sed -i "s/\($nom.*\);$supr\(.*\)/\1;$val \2/" usersinfos
 				fi
 			else
 				echo "Aucun champ ne correspond"
@@ -501,8 +496,6 @@ function ask-nom() {
 	done
 
 }
-
-
 	
 function erreur() { 
 	echo "Il y a une erreur. Veuillez recommencer." 
@@ -535,7 +528,7 @@ if [ $# -ge 1 ]; then
 		  else
 			erreur
 		  fi;;
-	-admin) connection-admin NULL;;
+	-admin) connection-admin NULL ;;
 	*) erreur;;
 	esac
 else 
