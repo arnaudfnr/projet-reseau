@@ -1,6 +1,9 @@
 #!/bin/bash
 
+#define _XOPEN_SOURCE
+#include "genererSalt.c"
 #include <unistd.h>
+
 
 ########################################################################################################
 #			fonction interaction							       
@@ -101,7 +104,7 @@ function connection() {
 					
 	else 
 		echo "Vous n'avez pas les droits !"
-	fi
+	fi 2>> erreur.log
 
 }
 
@@ -514,6 +517,7 @@ function commande-exit() {
 		break
 	elif [ $cpt -eq 0 ]; then
 		sed -i "/$2.*$1.*/d" Connexions
+		rm erreur.log
 		exit 0
 	else 
 		erreur
