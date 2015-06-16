@@ -85,8 +85,8 @@ function connection() {
 	if [ $(grep $2 users | grep -o $1) = $1 ]; then
 			echo -e "Rentrez votre mot de passe : \c"
 			read -s mdp
+			pass_cryp=$(echo "$mdp" | openssl enc -base64)
 			if [ $mdp = $(grep $2 users | cut -d \; -f 3) ]; then
-			
 					date=$(date | cut -d \( -f 1 ) 
 					echo "$2 ; $1 ; $date" >> Connexions
 					sed -i "s/$2 ;\(.*\);\(.*\);.*;.*;\(.*\)/$2 ;\1;\2;pts\/$tty ;$date ;\3/" usersinfos
@@ -198,8 +198,9 @@ function commande-passwd() {
 		echo -e "\nConfirmer le nouveau mot de passe : \c"
 		read -s pass2
 		if [ $pass = $pass2 ] ; then
-			if [ $2 = "admin" ]; then sed -i 's/.*/'$pass'/' passAdmin
-			else sed -i 's/'$2';\(.*\);.*/'$2';\1; '$pass'/' users
+		pass_cryp=$(echo "$pass" | openssl enc -base64)
+			if [ $2 = "admin" ]; then sed -i 's/.*/'$pass_cryp'/' passAdmin
+			else sed -i 's/'$2';\(.*\);.*/'$2';\1; '$pass_cryp'/' users
 			fi
 		else 
 			echo "Les mots de passe sont différents !" 
@@ -435,7 +436,8 @@ function admin-users(){
 			   done   
 		           echo "Entrer la liste des machines auxquelles l'utilisateur peut se connecter en les séparant par un espace"
 			   read machine
-		           echo "$nom; $machine ; $mdp" >> users
+			   pass_cryp=$(echo "$mdp" | openssl enc -base64)
+		           echo "$nom; $machine ; $pass_cryp" >> users
 			   echo "$nom;" >> usersinfos
 		           break;;
 
@@ -477,7 +479,8 @@ function admin-users(){
 			4) ask-nom
 			   echo -e "\nChoisir un nouveau mot de passe"
 			   read mdp
-			   sed -i "s/$nom;\(.*\);.*/$nom;\1; $mdp/" users
+			   pass_cryp=$(echo "$mdp" | openssl enc -base64)
+			   sed -i "s/$nom;\(.*\);.*/$nom;\1; $pass_cryp/" users
 			   break;;
 
 			5) break;;
