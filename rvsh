@@ -87,10 +87,10 @@ function connection() {
 			interaction $1 $2 $3
 			break
 		fi
-	elif [ $(grep $2 users | grep -o $1) = $1 ]; then
+	elif [ $(grep $2 users | grep -o $1) = $1 ] || [ $2 = "admin" ]; then
 			echo -e "Rentrez votre mot de passe : \c"
 			read -s mdp
-			if [ $mdp = $(grep $2 users | cut -d \; -f 3) ]; then
+			if [ $mdp = $(grep $2 users | cut -d \; -f 3) ] || [ $mdp = $(cat passAdmin) ]; then
 			
 					date=$(date | cut -d \( -f 1 ) 
 					echo "$2 ; $1 ; $date" >> Connexions
@@ -117,17 +117,17 @@ function connection() {
 #
 ########################################################################################################
 
-function connection-admin(){
-	echo -e "Rentrez votre mot de passe : \c"
-	read -s mdp
-	date=$(date | cut -d \( -f 1 )
-	if [ $mdp = $(cat passAdmin) ]; then					
-		interaction NULL admin $1
-	else
-		echo -e "\nMauvais mot de passe !"
-		connection-admin
-	fi
-}
+#function connection-admin(){
+#	echo -e "Rentrez votre mot de passe : \c"
+#	read -s mdp
+#	date=$(date | cut -d \( -f 1 )
+#	if [ $mdp = $(cat passAdmin) ]; then					
+#		interaction NULL admin $1
+#	else
+#		echo -e "\nMauvais mot de passe !"
+#		connection-admin
+#	fi
+#}
 
 ######################################################################################################
 #			fonction su
@@ -150,12 +150,12 @@ function commande-su() {
 			done
 			cpt=`expr $cpt + 1`
 			interaction $mach $3 $2	
-		elif [ "$(grep $3 users)" != "" ]; then
+		elif [ "$(grep $3 users)" != "" ] || [ $3 = "admin" ]; then
 			cpt=`expr $cpt + 1`
 			connection $1 $3 $2 				
-		elif [ $3 = "admin" ]; then
-			cpt=`expr $cpt + 1`
-			connection-admin $3		
+		#elif [ $3 = "admin" ]; then
+		#	cpt=`expr $cpt + 1`
+	#		connection $1 $3 $2		
 		else
 			erreur
 		fi 2>> erreur.log
@@ -539,7 +539,7 @@ if [ $# -ge 1 ]; then
 		  else
 			erreur
 		  fi;;
-	-admin) connection-admin;;
+	-admin) connection NULL admin;;
 	*) erreur;;
 	esac
 else 
