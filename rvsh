@@ -79,19 +79,19 @@ function interaction() {
 ########################################################################################################
 
 function connection() {
-	if test $(grep $2 users | grep -o $1) = $1
-		then
+	if [ $3 = "admin" ]; then
+		if [ $(grep -o $1 machines) = $1 ]; then
+			interaction $1 $2 $3
+			break
+		fi
+	elif [ $(grep $2 users | grep -o $1) = $1 ]; then
 			echo -e "Rentrez votre mot de passe : \c"
 			read -s mdp
 			if [ $mdp = $(grep $2 users | cut -d \; -f 3) ]; then
 			
 					date=$(date | cut -d \( -f 1 ) 
 					echo "$2 ; $1 ; $date" >> Connexions
-					i=`expr $(cat Champs | wc -l) - 2`
-					echo "$(cat usersinfos | grep  $2 | cut -d \; -f 1-$i) ;$tty ;$date" > tmp
-					sed -i "/$2/d" usersinfos
-					cat tmp >> usersinfos
-					rm tmp
+					sed -i "s/$2 ;\(.*\);\(.*\);.*;.*;\(.*\)/$2 ;\1;\2;pts\/$tty ;$date ;\3/" usersinfos
 		
 					interaction $1 $2 $3
 			else
@@ -119,7 +119,7 @@ function connection-admin(){
 	read -s mdp
 	date=$(date | cut -d \( -f 1 )
 	if [ $mdp = $(cat passAdmin) ]; then					
-		interaction NULL admin
+		interaction NULL admin $1
 	else
 		echo -e "\nMauvais mot de passe !"
 		connection-admin
@@ -138,12 +138,24 @@ function connection-admin(){
 ########################################################################################################
 
 function commande-su() {
-	if [ -n $3 ]; then
-		cpt=`expr $cpt + 1`
-		connection $1 $3 $2 	
-	else 
-		erreur
-	fi
+		if [ $2 = "admin" ]; then
+			echo "Sur quelle machine voulez-vous vous connecter ?"
+			read mach
+			while [ "$(grep $mach machines)" = ""  ]; do
+				echo "La machine n'existe pas ! "
+				commande-su $1 $2 $3
+			done
+			cpt=`expr $cpt + 1`
+			interaction $mach $3 $2	
+		elif [ "$(grep $3 users)" != "" ]; then
+			cpt=`expr $cpt + 1`
+			connection $1 $3 $2 				
+		elif [ $3 = "admin" ]; then
+			cpt=`expr $cpt + 1`
+			connection-admin $3		
+		else
+			erreur
+		fi 2>> erreur.log
 }
 
 ######################################################################################################
@@ -155,12 +167,14 @@ function commande-su() {
 ########################################################################################################
 
 function commande-connect() {
-	if [ -n $3 ]; then
-		cpt=`expr $cpt + 1`
-		connection $3 $2 $1
-	else 
-		erreur
-	fi
+		if [ "$(grep $3 machines)" != " " ]; then
+			cpt=`expr $cpt + 1`
+			connection $3 $2 $1
+		elif [ $2 = "admin" ] ; then
+			interaction $3 $2
+		else 
+			erreur
+		fi 2>> erreur.log
 }
 
 ######################################################################################################
@@ -275,34 +289,8 @@ function commande-rhost() {
 }
 
 function commande-finger() {
-	#fich="NULL"
-	#if [ $2 = "admin" ] ; then
-	#	echo "Quels informations afficher ?"
-	#	PS3="Votre choix : "
-	#	select choix in "Tous les utiliateurs" "Les utilisateurs connectés";
-	#	do
-	#		case $REPLY in 
-	#		1) 	fich="users"
-	#			break;;
-	#		2) 	fich="Connexions"
-	#			break;;
-	#		*) 	echo "Chox non compris";;
-	#		esac
-	#	done
-	#		
-	#	while read user
-	#	do
-	#		i=1
-	#		user=$(echo $user | cut -d \; -f 1)
-	#		while read champ
-	#		do
-	#			echo "$champ  : $(cat usersinfos | grep $user | cut -d \; -f $i)" 
-	#			i=`expr $i + 1` 
-	#		done < Champs
-	#	done < $fich
-	#else
 	if [ $2 = "admin" ] ; then
-		echo -e "Administrateur \nConnecté au terminal $tty \nDate de connexion : $date"
+		echo -e "Administrateur \nConnecté au terminal pts/$tty \nDate de connexion : $date"
 	else
 		local i=1 champ
 		while read champ
@@ -311,6 +299,103 @@ function commande-finger() {
 			i=`expr $i + 1` 
 		done < Champs
 	fi
+}
+
+#########################################################################################################
+#			fonction afinger
+#
+# L'administrateur choisi s'il veut ajouter, supprimer ou modifier les informations d'un utilisateur
+# L'utilisateur choisi ce qu'il veut modifier à l'aide de menus
+#
+#########################################################################################################
+
+function admin-afinger(){
+	local nom nom2
+	echo -e "\nListe des utilisateurs"
+	cat users | cut -d \; -f 1 
+		echo -e "\nListe des informations"
+			  local i=1 champ
+			  while read champ
+			  do
+				echo "$champ"
+			  done < Champs
+			  echo -e "\n"
+	select choix in "Ajouter des informations à un utilisateur" "Modifier des informations d'un utilisateur" "Supprimer des informations d'un utilisateur" "Ne rien faire"
+	do
+		case $REPLY in
+			1)ask-nom
+			  i=1
+		 	  while read champ
+			  do
+				echo "$champ  : $(cat usersinfos | grep $nom | cut -d \; -f $i)"
+				i=`expr $i + 1` 
+			  done < Champs
+			  echo "Que voulez-vous ajouter ?"
+			  read ajout
+			  echo $ajout >> Champs
+			  echo "Quelle valeur voulez-vous donner à $ajout pour $nom ?"
+			  read val
+			  sed -i "s/^\([^$nom].*\)$/\1;NC /" usersinfos	       
+			  sed -i "s/^\([$nom].*\)$/\1;$val /" usersinfos	       
+			  break;;
+			2)ask-nom
+			  i=1 
+			  while read champ
+			  do
+				echo "$champ  : $(cat usersinfos | grep $nom | cut -d \; -f $i)"
+			  i=`expr $i + 1` 
+			  done < Champs
+			  echo "Que voulez-vous modifier ?"
+			  read modif
+			  i=1
+			  while read champ && [ "$modif" != "$champ" ]
+			  do
+				  i=`expr $i + 1` 
+			  done < Champs
+		  	if [ "$modif" = "$champ" ]; then
+			  	echo "Quelle valeur voulez-vous donner à "$modif" pour $nom ?"
+			  	read val
+				supr=$(cat usersinfos | grep $nom | cut -d \; -f $i)
+				if [ "$modif" = "Nom" ] ; then
+					sed -i "s/$nom\(.*\)/$val\1/" usersinfos
+				else
+					sed -i "s/\([$nom].*\);$supr\(.*\)/\1;$val \2/" usersinfos
+				fi
+			else
+				echo "Aucun champ ne correspond"
+				admin-afinger
+			fi
+			break;;	
+			3)ask-nom
+			  i=1 
+			  while read champ
+			  do
+				echo "$champ  : $(cat usersinfos | grep $nom | cut -d \; -f $i)"
+				i=`expr $i + 1` 
+			  done < Champs
+			  echo " Que voulez vous supprimer ?"
+			  read modif
+			  i=1
+			  while read champ && [ "$modif" != "$champ" ]
+			  do
+				i=`expr $i + 1`
+			  done < Champs
+			  if [ "$modif" =  "$champ" ]; then
+				sup=$(cat usersinfos | grep $nom | cut -d \; -f $i)
+				sed -i "s/^\([$nom].*\)$sup\(.*\)/\1NC\2/" usersinfos
+			  else
+				echo "Aucun champ ne correspond"
+				admin-afinger
+			  fi			
+			  break;;
+			4)break;;
+			*)echo "Choix non compris !"
+			  admin-afinger;;
+
+		esac
+	done
+
+
 }
 
 function admin-host(){
@@ -409,15 +494,14 @@ function admin-users(){
 function ask-nom() {
 	echo -e "\nEntrer le nom d'utilisateur : \c"
 	read nom
-	verif-nom $nom
-}
-
-function verif-nom() {
-	if [ -z "$(cat users | grep $1)" ]; then
+	while [ "$nom" != "$(grep $nom users | cut -d \; -f 1)" ] ; do
 		echo "L'utilisateur n'existe pas !"
 		ask-nom
-	fi
+	done
+
 }
+
+
 	
 function erreur() { 
 	echo "Il y a une erreur. Veuillez recommencer." 
@@ -437,14 +521,14 @@ function commande-exit() {
 }	
 
 # récupération du numéro de terminal (pts/n)
-tty=$(tty | cut -d \/ -f 3,4)
+tty=$(tty | cut -d \/ -f 4)
 cpt=0
 PS3="Votre choix ? "
 
 if [ $# -ge 1 ]; then
 	case $1 in
 	
-	-connect) if [ $# -ge 3	]; then # test pour savoir si l'user a bien envoyé tous les args
+	-connect) if [ $# -eq 3	]; then # test pour savoir si l'user a bien envoyé tous les args
 			  connection $2 $3 	# $2(machine)	$3(user)
 		  else
 			erreur
