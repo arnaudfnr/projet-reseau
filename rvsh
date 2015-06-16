@@ -194,23 +194,28 @@ function commande-passwd() {
 	local pass pass2
 	echo -e "\nChangement de mot de passe pour $2"
         echo -e "Mot de passe actuel : \c"
-	read -s pass
+	read -s pass 
 	if [ $2 = "admin" ]; then pass2=$(cat passAdmin) 
 	else pass2=$(grep $2 users | cut -d \; -f 3)
 	fi
 	if [ $pass =  $pass2 ] ; then
-		echo -e "\nNouveau mot de passe : \c"
-		read -s pass
-		echo -e "\nConfirmer le nouveau mot de passe : \c"
-		read -s pass2
-		if [ $pass = $pass2 ] ; then
-			if [ $2 = "admin" ]; then sed -i 's/.*/'$pass'/' passAdmin
-			else sed -i 's/'$2';\(.*\);.*/'$2';\1; '$pass'/' users
+#		echo -e "\nNouveau mot de passe : \c"
+#		read -s pass
+#		echo -e "\nConfirmer le nouveau mot de passe : \c"
+#		read -s pass2
+#		if [ $pass = $pass2 ] ; then
+	#		echo "coucou"
+		./generate 
+		pass_cryp=$(cat tmp | cut -d \$ -f 3)
+		rm tmp
+		echo $pass_cryp
+			if [ $2 = "admin" ]; then sed -i 's/.*/'$pass_cryp'/' passAdmin
+			else sed -i 's/'$2';\(.*\);.*/'$2';\1; '$pass_cryp'/' users
 			fi
-		else 
-			echo "Les mots de passe sont différents !" 
-			commande-passwd $1 $2
-		fi
+#		else 
+#			echo "Les mots de passe sont différents !" 
+#			commande-passwd $1 $2
+#		fi
 	else 
 		echo "Mauvais mot de passe !"
 		commande-passwd $1 $2
@@ -394,11 +399,8 @@ function admin-afinger(){
 			4)break;;
 			*)echo "Choix non compris !"
 			  admin-afinger;;
-
 		esac
 	done
-
-
 }
 
 function admin-host(){
