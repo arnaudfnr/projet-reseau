@@ -62,9 +62,9 @@ function interaction() {
 #			fonction connection
 #
 # $1(machine)	 $2(user)    $3 (user précédent)
-# On crée deux variables locale pass_cryp et mdp.
+# On crée deux variables locale pass_cryp et pass.
 # On teste si l'utilisateur a le droit de se connecter à la machine
-# On teste si le mdp est celui renseigné dans le fichier users 
+# On teste si le pass est celui renseigné dans le fichier users 
 # Pour cela on récupère la partie derrière le 3e ; à la ligne de l'user 
 # On récupère la date au format "jour mois année heure" 
 # On écrit ensuite les informations dans le fichier Connexions
@@ -78,11 +78,11 @@ function interaction() {
 ########################################################################################################
 
 function connection() {
-	local pass_cryp, mdp
+	local pass pass_cryp 
 	if [ $(grep $2 users | grep -o $1) = $1 ]; then
 			echo -e "Rentrez votre mot de passe : \c"
-			read -s mdp
-			pass_cryp=$(echo "$mdp" | openssl enc -base64)
+			read -s pass
+			pass_cryp=$(echo "$pass" | openssl enc -base64)
 			if [ $pass_cryp = $(grep $2 users | cut -d \; -f 3) ]; then
 					# récupération du numéro de terminal (pts/n)
 					tty=$(tty | cut -d \/ -f 4)
@@ -105,17 +105,17 @@ function connection() {
 #			fonction connection-admin
 #
 # connection en mode admin
-# On crée deux variables locales, mdp et pass_cryp qui contiendront le mot de passe à vérifier.
-# vérification du mdp en le cryptant puis en le comparant à celui stocké dans le fichier passAdmin.
+# On crée deux variables locales, pass et pass_cryp qui contiendront le mot de passe à vérifier.
+# vérification du pass en le cryptant puis en le comparant à celui stocké dans le fichier passAdmin.
 # appel de la fonction interaction.
 #
 ########################################################################################################
 
 function connection-admin(){
-	local mdp, pass_cryp
+	local pass pass_cryp
 	echo -e "Rentrez votre mot de passe : \c"
-	read -s mdp
-	pass_cryp=$(echo "$mdp" | openssl enc -base64)
+	read -s pass
+	pass_cryp=$(echo "$pass" | openssl enc -base64)
 	date=$(date | cut -d \( -f 1 )
 	if [ $pass_cryp = $(cat passAdmin) ]; then					
 		interaction $1 admin $2
@@ -126,7 +126,7 @@ function connection-admin(){
 }
 
 ######################################################################################################
-#			fonction su
+#			fonction commande-su
 #
 # $1 (machine) $2 (ancien user) $3 (nouvel user)
 # Si le nom du nouvel utilisateur a été donné en argument, on incrémente un compteur
@@ -158,7 +158,7 @@ function commande-su() {
 }
 
 ######################################################################################################
-#			fonction connect
+#			fonction commande-connect
 #
 # $1 (ancienne machine) $2 (user) $3 (nouvelle machine)
 # Fonctionne sur le même principe que la commande su.
@@ -177,11 +177,11 @@ function commande-connect() {
 }
 
 ######################################################################################################
-#			fonction passwd
+#			fonction commande-passwd
 #
 # $1 (machine) $2 (user)
-# On redemande d'abord le mdp de l'user (ou de l'admin) et on le vérifie
-# Si c'est bon, on demande le nouveau mdp et sa confirmation sinon on recommence
+# On redemande d'abord le pass de l'user (ou de l'admin) et on le vérifie
+# Si c'est bon, on demande le nouveau pass et sa confirmation sinon on recommence
 # Enfin on modifie le fichier users avec la commande sed -i
 #
 ########################################################################################################
@@ -194,7 +194,8 @@ function commande-passwd() {
 	if [ $2 = "admin" ]; then pass2=$(cat passAdmin) 
 	else pass2=$(grep $2 users | cut -d \; -f 3)
 	fi
-	if [ $pass =  $pass2 ] ; then
+	pass_cryp=$(echo "$pass" | openssl enc -base64)
+	if [ $pass_cryp =  $pass2 ] ; then
 		echo -e "\nNouveau mot de passe : \c"
 		read -s pass
 		echo -e "\nConfirmer le nouveau mot de passe : \c"
@@ -215,7 +216,7 @@ function commande-passwd() {
 }
 
 ######################################################################################################
-#			fonction write
+#			fonction commande-write
 #
 # $1 (machine) $2 (user) $3 (destinataire@samachine) $4 (message)
 # On commence par créer deux variables locales receiver et mach à partir de l'argument 3
@@ -250,7 +251,7 @@ function commande-write() {
 }
 
 ######################################################################################################
-#			fonction who
+#			fonction commande-who
 #
 # $1 (machine)
 # On vérifie tout d'abord que l'user est bien connecté à une machine (l'admin ne l'est pas)
@@ -267,7 +268,7 @@ function commande-who() {
 }
 
 ######################################################################################################
-#			fonction rusers
+#			fonction commande-rusers
 #
 # Le fichier Connexions stocke toutes les infos nécessaires pour la commande rusers, donc on l'affiche
 #
@@ -278,7 +279,7 @@ function commande-rusers() {
 }
 
 ######################################################################################################
-#			fonction rhost
+#			fonction commande-rhost
 #
 # Le fichier machine stocke toutes les machines du réseau, donc on l'affiche
 #
@@ -287,6 +288,16 @@ function commande-rusers() {
 function commande-rhost() { 
 	cat machines 
 }
+
+######################################################################################################
+#			fonction commande-finger
+#
+# Si c'est l'administrateur qui appelle cette commande, on afficher juste le  terminal et la date de 
+# connection.
+# Sinon on affiche pour chaque champ contenu dans le fichier Champs les informations relatives à 
+# l'utilisateur, stcokées dans le fichier usersinfos.
+#
+########################################################################################################
 
 function commande-finger() {
 	if [ $2 = "admin" ] ; then
@@ -302,24 +313,39 @@ function commande-finger() {
 }
 
 #########################################################################################################
-#			fonction afinger
+#			fonction admin-afinger
 #
-# L'administrateur choisi s'il veut ajouter, supprimer ou modifier les informations d'un utilisateur
-# L'utilisateur choisi ce qu'il veut modifier à l'aide de menus
+# On commence par créer deux variables locales i et champ.
+# On commence par afficher la liste des utilisateurs à l'aide d'un cat suivi d'un cut.
+# On affiche ensuite la liste des informations à partir du ficier Champs.
+# Ensuite on affiche un menu avec la structure select suivi d'un case pour orienter les script.
+#
+# Dans le cas ajouter des informations à un utilisateur, on demande d'abord le nom avec la fonction 
+# ask-nom, puis on affiche les informations renseignées sur chaque champ pour cet utilisateur.
+# On ajoute ensuite le nouveau champ d'information à la fin du fichier champ et on complète le fichier
+# usersinfos avec l'information renseignée sur l'utilisateur avec la commande sed -i. On met alors "NC"
+# pour tous les autres utilisateurs pour ce champ. 
+#
+# Dans le cas modifier des information d'un utilisateur, on appelle d'abord la fonction ask-nom puis on
+# affiche les information sur l'utilisateur. On demande ensuite le champ que l'on veut modifier (en 
+# vérifiant qu'il existe) avec sa valeur et on remplace dans le fichiers usersinfos avec la commande sed.
+# 
+# Dans le cas supprimer des informations d'un utilisateur, après avoir appelé la fonction ask-nom et 
+# afficher les informatiosn sur l'utilisateur, on demande le champ à supprimer, on vérifie qu'il existe
+# et on supprime l'information correspondante à l'utilisateur dans le fichier usersinfos avec la sed.
 #
 #########################################################################################################
 
 function admin-afinger(){
-	local nom nom2
+	local i champ
 	echo -e "\nListe des utilisateurs"
 	cat users | cut -d \; -f 1 
-		echo -e "\nListe des informations"
-			  local i=1 champ
-			  while read champ
-			  do
-				echo "$champ"
-			  done < Champs
-			  echo -e "\n"
+	echo -e "\nListe des informations"
+	while read champ
+	do
+		echo "$champ"
+	done < Champs
+	echo -e "\n"
 	select choix in "Ajouter des informations à un utilisateur" "Modifier des informations d'un utilisateur" "Supprimer des informations d'un utilisateur" "Ne rien faire"
 	do
 		case $REPLY in
@@ -357,15 +383,15 @@ function admin-afinger(){
 			  	read val
 				if [ "$modif" = "Nom" ] ; then
 					sed -i "s/$nom\(.*\)/$val\1/" usersinfos
+					sed -i "s/$nom\(.*\)/$val\1/" users
 				else
 					supr=$(cat usersinfos | grep $nom | cut -d \; -f $i)
 					sed -i "s/\($nom.*\);$supr\(.*\)/\1;$val \2/" usersinfos
 				fi
+				break
 			else
 				echo "Aucun champ ne correspond"
-				admin-afinger
-			fi
-			break;;	
+			fi;;	
 			3)ask-nom
 			  i=1 
 			  while read champ
@@ -383,14 +409,12 @@ function admin-afinger(){
 			  if [ "$modif" =  "$champ" ]; then
 				sup=$(cat usersinfos | grep $nom | cut -d \; -f $i)
 				sed -i "s/^\([$nom].*\)$sup\(.*\)/\1NC\2/" usersinfos
+				break
 			  else
 				echo "Aucun champ ne correspond"
-				admin-afinger
-			  fi			
-			  break;;
+			  fi;;			
 			4)break;;
-			*)echo "Choix non compris !"
-			  admin-afinger;;
+			*)echo "Choix non compris !";;
 		esac
 	done
 }
@@ -430,13 +454,13 @@ function admin-host(){
 ######################################################################################################
 #			fonction admin-users
 #
-# On commence par créer deux variables locales mdp et mdp2.
+# On commence par créer deux variables locales pass et pass2.
 # On affiche la liste des utilisateurs 
 # On affiche ensuite un menu comportant plusieurs choix, suivi d'un case pour orienter le script.
 #
-# Dans le cas ajouter un utilisateur, on demande le nom, le mdp avec confirmation, puis la liste des
+# Dans le cas ajouter un utilisateur, on demande le nom, le pass avec confirmation, puis la liste des
 # machines sur lesquelles il pourra se connecter.
-# On encrypte le mdp avec la commande openssl (en base 64), puis on le met dans le fichier users.
+# On encrypte le pass avec la commande openssl (en base 64), puis on le met dans le fichier users.
 # 
 # Dans le cas, supprimer un utilisateur, on appelle la fonction ask-nom pour demander le nom de 
 # l'utilisateur à supprimer. Avec la commande sed, on supprime juste les lignes contenant ce nom dans 
@@ -458,7 +482,7 @@ function admin-host(){
 ########################################################################################################
 
 function admin-users(){
-	local mdp mdp2
+	local pass pass2
 	echo -e "\nListe des utilisateurs"
 	cat users | cut -d \; -f 1 
 	echo -e "\n"
@@ -467,19 +491,19 @@ function admin-users(){
 		case $REPLY in
 			1) echo -e "\nEntrer le nom du nouvel utilisateur : \c"
 			   read nom
-			   while [ $mdp != $mdp2 ]
+			   while [ $pass != $pass2 ]
 			   do
 				echo -e "Entrer le mot de passe du nouvel utilisateur : \c"
-				read -s mdp
+				read -s pass
 				echo -e "\nConfirmer le mot de passe : \c"
-				read -s mdp2
-				if [ $mdp != $mdp2 ] ; then 
+				read -s pass2
+				if [ $pass != $pass2 ] ; then 
 					echo -e "\nLes mots de passe sont différents !" 
 				fi
 			   done   
 		           echo "Entrer la liste des machines auxquelles l'utilisateur peut se connecter en les séparant par un espace"
 			   read machine
-			   pass_cryp=$(echo "$mdp" | openssl enc -base64)
+			   pass_cryp=$(echo "$pass" | openssl enc -base64)
 		           echo "$nom; $machine ; $pass_cryp" >> users
 			   echo "$nom;" >> usersinfos
 		           break;;
@@ -521,8 +545,8 @@ function admin-users(){
 
 			4) ask-nom
 			   echo -e "\nChoisir un nouveau mot de passe"
-			   read mdp
-			   pass_cryp=$(echo "$mdp" | openssl enc -base64)
+			   read pass
+			   pass_cryp=$(echo "$pass" | openssl enc -base64)
 			   sed -i "s/$nom;\(.*\);.*/$nom;\1; $pass_cryp/" users
 			   break;;
 
